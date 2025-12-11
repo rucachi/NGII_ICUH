@@ -1,0 +1,11 @@
+gdal
+rasterio
+geopandas
+shapely
+numpy
+scipy
+streamlit
+streamlit-folium
+folium
+pandas
+

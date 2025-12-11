@@ -1,0 +1,8 @@
+gdal
+rasterio
+geopandas
+shapely
+numpy
+scipy
+flask
+flask-cors
