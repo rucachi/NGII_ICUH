@@ -74,88 +74,85 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # st.empty()를 사용하여 지도 컨테이너를 동적으로 관리하여 DOM 충돌 방지
-        map_placeholder = st.empty()
-        
-        with map_placeholder.container():
-            # Folium 지도 생성 (세션 상태에 캐싱하여 재사용)
-            try:
-                # 지도가 세션 상태에 없으면 생성
-                if st.session_state.folium_map is None:
-                    m = folium.Map(
-                        location=[36.5, 127.5],  # 한국 중심
-                        zoom_start=7,
-                        tiles='OpenStreetMap'
-                    )
-                    
-                    # Draw 플러그인 추가 (영역 그리기 도구)
-                    draw = Draw(
-                        export=True,
-                        position='topleft',
-                        draw_options={
-                            'polyline': False,
-                            'polygon': True,
-                            'rectangle': True,
-                            'circle': False,
-                            'marker': False,
-                            'circlemarker': False
-                        }
-                    )
-                    draw.add_to(m)
-                    
-                    # 기존 후보지 표시
-                    if os.path.exists("output/candidates.geojson"):
-                        try:
-                            existing_candidates = gpd.read_file("output/candidates.geojson")
-                            for idx, row in existing_candidates.iterrows():
-                                folium.CircleMarker(
-                                    location=[row.geometry.y, row.geometry.x],
-                                    radius=5,
-                                    popup=f"점수: {row['score']:.1f}",
-                                    color='blue',
-                                    fill=True
-                                ).add_to(m)
-                        except:
-                            pass
-                    
-                    # 세션 상태에 저장
-                    st.session_state.folium_map = m
-                else:
-                    # 기존 지도 재사용
-                    m = st.session_state.folium_map
-                
-                # 지도 표시 및 상호작용
-                # 고유한 key를 사용하여 인스턴스 고정, 최소한의 returned_objects로 불필요한 업데이트 방지
-                map_data = st_folium(
-                    m, 
-                    width=700, 
-                    height=500, 
-                    key="main_folium_map",  # 더 고유한 key 사용
-                    returned_objects=["all_drawings"],  # last_clicked 제거하여 불필요한 업데이트 방지
-                    use_container_width=False
+        # Folium 지도 생성 (세션 상태에 캐싱하여 재사용)
+        try:
+            # 지도가 세션 상태에 없으면 생성
+            if st.session_state.folium_map is None:
+                m = folium.Map(
+                    location=[36.5, 127.5],  # 한국 중심
+                    zoom_start=7,
+                    tiles='OpenStreetMap'
                 )
                 
-                # 그려진 영역 처리
-                if map_data and isinstance(map_data, dict):
-                    if map_data.get("all_drawings"):
-                        drawings = map_data["all_drawings"]
-                        if drawings and len(drawings) > 0:
-                            # 마지막 그려진 영역 사용
-                            last_drawing = drawings[-1]
-                            if isinstance(last_drawing, dict) and "geometry" in last_drawing:
-                                st.session_state.aoi_geometry = last_drawing["geometry"]
-                                if not st.session_state.geometry_notified:
-                                    st.success("✅ 관심영역이 선택되었습니다!")
-                                    st.session_state.geometry_notified = True
-                                    
-            except Exception as e:
-                # 오류 발생 시 지도 캐시 초기화
+                # Draw 플러그인 추가 (영역 그리기 도구)
+                draw = Draw(
+                    export=True,
+                    position='topleft',
+                    draw_options={
+                        'polyline': False,
+                        'polygon': True,
+                        'rectangle': True,
+                        'circle': False,
+                        'marker': False,
+                        'circlemarker': False
+                    }
+                )
+                draw.add_to(m)
+                
+                # 기존 후보지 표시
+                if os.path.exists("output/candidates.geojson"):
+                    try:
+                        existing_candidates = gpd.read_file("output/candidates.geojson")
+                        for idx, row in existing_candidates.iterrows():
+                            folium.CircleMarker(
+                                location=[row.geometry.y, row.geometry.x],
+                                radius=5,
+                                popup=f"점수: {row['score']:.1f}",
+                                color='blue',
+                                fill=True
+                            ).add_to(m)
+                    except:
+                        pass
+                
+                # 세션 상태에 저장
+                st.session_state.folium_map = m
+            else:
+                # 기존 지도 재사용
+                m = st.session_state.folium_map
+            
+            # 지도 표시 및 상호작용
+            # 고유하고 안정적인 key 사용, returned_objects를 최소화하여 리렌더링 방지
+            # zoom과 center를 명시적으로 전달하지 않아 지도가 자체적으로 관리하도록 함
+            map_data = st_folium(
+                m, 
+                width=700, 
+                height=500, 
+                key="folium_map_component",  # 고유하고 안정적인 key
+                returned_objects=["all_drawings"],  # 최소한의 객체만 반환
+                use_container_width=False
+            )
+            
+            # 그려진 영역 처리
+            if map_data and isinstance(map_data, dict):
+                if map_data.get("all_drawings"):
+                    drawings = map_data["all_drawings"]
+                    if drawings and len(drawings) > 0:
+                        # 마지막 그려진 영역 사용
+                        last_drawing = drawings[-1]
+                        if isinstance(last_drawing, dict) and "geometry" in last_drawing:
+                            st.session_state.aoi_geometry = last_drawing["geometry"]
+                            if not st.session_state.geometry_notified:
+                                st.success("✅ 관심영역이 선택되었습니다!")
+                                st.session_state.geometry_notified = True
+                                
+        except Exception as e:
+            # 오류 발생 시 지도 캐시 초기화
+            st.session_state.folium_map = None
+            st.error("⚠️ 지도 로딩 중 오류가 발생했습니다.")
+            st.info("💡 페이지를 새로고침해주세요.")
+            if st.button("🔄 페이지 새로고침", key="refresh_map"):
                 st.session_state.folium_map = None
-                st.error("⚠️ 지도 로딩 중 오류가 발생했습니다.")
-                st.info("💡 페이지를 새로고침해주세요.")
-                if st.button("🔄 페이지 새로고침", key="refresh_map"):
-                    st.session_state.folium_map = None
-                    st.rerun()
+                st.rerun()
     
     with col2:
         st.subheader("분석 실행")
