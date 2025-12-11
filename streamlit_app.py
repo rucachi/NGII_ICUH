@@ -10,6 +10,8 @@ from folium.plugins import Draw
 from streamlit_folium import st_folium
 import tempfile
 import json
+import time
+import json as json_lib
 
 # Import analysis modules
 import sys
@@ -37,6 +39,29 @@ if 'candidates' not in st.session_state:
     st.session_state.candidates = None
 if 'aoi_geometry' not in st.session_state:
     st.session_state.aoi_geometry = None
+if 'map_initialized' not in st.session_state:
+    st.session_state.map_initialized = False
+if 'render_count' not in st.session_state:
+    st.session_state.render_count = 0
+
+# #region agent log
+def debug_log(location, message, data=None, hypothesis_id=None):
+    log_entry = {
+        "id": f"log_{int(time.time() * 1000)}",
+        "timestamp": int(time.time() * 1000),
+        "location": location,
+        "message": message,
+        "data": data or {},
+        "sessionId": "debug-session",
+        "runId": "run1",
+        "hypothesisId": hypothesis_id
+    }
+    try:
+        with open(r"c:\NGII\.cursor\debug.log", "a", encoding="utf-8") as f:
+            f.write(json_lib.dumps(log_entry, ensure_ascii=False) + "\n")
+    except:
+        pass
+# #endregion
 
 # 사이드바
 with st.sidebar:
@@ -60,8 +85,23 @@ with st.sidebar:
     3. 결과를 확인하고 다운로드합니다
     """)
 
+# #region agent log
+st.session_state.render_count += 1
+debug_log("streamlit_app.py:88", "Script render start", {
+    "render_count": st.session_state.render_count,
+    "candidates_exists": st.session_state.candidates is not None,
+    "aoi_geometry_exists": st.session_state.aoi_geometry is not None
+}, "A")
+# #endregion
+
 # 메인 컨텐츠
 tab1, tab2 = st.tabs(["🗺️ 지도 분석", "📊 결과 분석"])
+
+# #region agent log
+debug_log("streamlit_app.py:93", "Tabs created", {
+    "render_count": st.session_state.render_count
+}, "A")
+# #endregion
 
 with tab1:
     st.header("관심영역 선택 및 분석")
@@ -70,60 +110,81 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Folium 지도 생성
-        m = folium.Map(
-            location=[36.5, 127.5],  # 한국 중심
-            zoom_start=7,
-            tiles='OpenStreetMap'
-        )
+        # Folium 지도 생성 함수
+        def create_map():
+            m = folium.Map(
+                location=[36.5, 127.5],  # 한국 중심
+                zoom_start=7,
+                tiles='OpenStreetMap'
+            )
+            
+            # Draw 플러그인 추가 (영역 그리기 도구)
+            draw = Draw(
+                export=True,
+                position='topleft',
+                draw_options={
+                    'polyline': False,
+                    'polygon': True,
+                    'rectangle': True,
+                    'circle': False,
+                    'marker': False,
+                    'circlemarker': False
+                }
+            )
+            draw.add_to(m)
+            
+            # 기존 후보지 표시
+            if os.path.exists("output/candidates.geojson"):
+                try:
+                    existing_candidates = gpd.read_file("output/candidates.geojson")
+                    for idx, row in existing_candidates.iterrows():
+                        folium.CircleMarker(
+                            location=[row.geometry.y, row.geometry.x],
+                            radius=5,
+                            popup=f"점수: {row['score']:.1f}",
+                            color='blue',
+                            fill=True
+                        ).add_to(m)
+                except:
+                    pass
+            
+            return m
         
-        # Draw 플러그인 추가 (영역 그리기 도구)
-        draw = Draw(
-            export=True,
-            position='topleft',
-            draw_options={
-                'polyline': False,
-                'polygon': True,
-                'rectangle': True,
-                'circle': False,
-                'marker': False,
-                'circlemarker': False
-            }
-        )
-        draw.add_to(m)
+        # 지도 생성
+        m = create_map()
         
-        # 기존 후보지 표시
-        if os.path.exists("output/candidates.geojson"):
-            try:
-                existing_candidates = gpd.read_file("output/candidates.geojson")
-                for idx, row in existing_candidates.iterrows():
-                    folium.CircleMarker(
-                        location=[row.geometry.y, row.geometry.x],
-                        radius=5,
-                        popup=f"점수: {row['score']:.1f}",
-                        color='blue',
-                        fill=True
-                    ).add_to(m)
-            except:
-                pass
-        
-        # 지도 표시 및 상호작용
-        map_data = st_folium(m, width=700, height=500, returned_objects=["last_clicked", "all_drawings"])
-        
-        # 그려진 영역 처리
-        if map_data.get("all_drawings"):
-            drawings = map_data["all_drawings"]
-            if drawings:
-                # 마지막 그려진 영역 사용
-                last_drawing = drawings[-1]
-                if "geometry" in last_drawing:
-                    st.session_state.aoi_geometry = last_drawing["geometry"]
-                    st.success("관심영역이 선택되었습니다!")
+        # 지도 표시 및 상호작용 (key를 사용하여 인스턴스 고정)
+        try:
+            map_data = st_folium(
+                m, 
+                width=700, 
+                height=500, 
+                key="main_map",
+                returned_objects=["last_clicked", "all_drawings"]
+            )
+            
+            # 그려진 영역 처리
+            if map_data and map_data.get("all_drawings"):
+                drawings = map_data["all_drawings"]
+                if drawings and len(drawings) > 0:
+                    # 마지막 그려진 영역 사용
+                    last_drawing = drawings[-1]
+                    if "geometry" in last_drawing:
+                        st.session_state.aoi_geometry = last_drawing["geometry"]
+                        if not st.session_state.get("geometry_notified", False):
+                            st.success("관심영역이 선택되었습니다!")
+                            st.session_state.geometry_notified = True
+        except Exception as e:
+            st.error(f"지도 로딩 오류: {str(e)}")
+            st.info("페이지를 새로고침해주세요.")
     
     with col2:
         st.subheader("분석 실행")
         
         if st.button("🔍 영역 분석 실행", type="primary", use_container_width=True):
+            # 알림 상태 리셋
+            st.session_state.geometry_notified = False
+            
             if st.session_state.aoi_geometry is None:
                 st.error("먼저 지도에서 관심영역을 그려주세요!")
             else:
@@ -158,6 +219,7 @@ with tab1:
                             st.warning("선택한 영역에서 적합한 후보지를 찾을 수 없습니다.")
                         else:
                             st.success(f"✅ {len(candidates)}개의 후보지가 발견되었습니다!")
+                            st.rerun()  # 결과 탭으로 자동 이동
                             
                     except Exception as e:
                         st.error(f"분석 중 오류가 발생했습니다: {str(e)}")
@@ -191,6 +253,13 @@ with tab1:
 
 with tab2:
     st.header("분석 결과")
+    
+    # #region agent log
+    debug_log("streamlit_app.py:195", "Tab2 accessed", {
+        "render_count": st.session_state.render_count,
+        "has_candidates": st.session_state.candidates is not None
+    }, "E")
+    # #endregion
     
     if st.session_state.candidates is not None and not st.session_state.candidates.empty:
         candidates = st.session_state.candidates
