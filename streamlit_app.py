@@ -6,6 +6,7 @@ from rasterio.transform import xy
 import geopandas as gpd
 from shapely.geometry import Point, shape
 import folium
+from folium.plugins import Draw
 from streamlit_folium import st_folium
 import tempfile
 import json
@@ -75,6 +76,21 @@ with tab1:
             zoom_start=7,
             tiles='OpenStreetMap'
         )
+        
+        # Draw 플러그인 추가 (영역 그리기 도구)
+        draw = Draw(
+            export=True,
+            position='topleft',
+            draw_options={
+                'polyline': False,
+                'polygon': True,
+                'rectangle': True,
+                'circle': False,
+                'marker': False,
+                'circlemarker': False
+            }
+        )
+        draw.add_to(m)
         
         # 기존 후보지 표시
         if os.path.exists("output/candidates.geojson"):
