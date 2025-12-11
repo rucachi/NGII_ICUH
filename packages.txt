@@ -1,0 +1,6 @@
+# System packages required for GDAL and geospatial libraries
+# Streamlit Cloud will install these automatically
+libgdal-dev
+gdal-bin
+python3-gdal
+
