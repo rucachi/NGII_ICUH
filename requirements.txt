@@ -5,7 +5,7 @@ shapely
 numpy
 scipy
 streamlit
-streamlit-folium
+streamlit-folium>=0.15.0
 folium
 pandas
 
