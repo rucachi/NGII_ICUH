@@ -10,8 +10,6 @@ from folium.plugins import Draw
 from streamlit_folium import st_folium
 import tempfile
 import json
-import time
-import json as json_lib
 
 # Import analysis modules
 import sys
@@ -39,29 +37,8 @@ if 'candidates' not in st.session_state:
     st.session_state.candidates = None
 if 'aoi_geometry' not in st.session_state:
     st.session_state.aoi_geometry = None
-if 'map_initialized' not in st.session_state:
-    st.session_state.map_initialized = False
-if 'render_count' not in st.session_state:
-    st.session_state.render_count = 0
-
-# #region agent log
-def debug_log(location, message, data=None, hypothesis_id=None):
-    log_entry = {
-        "id": f"log_{int(time.time() * 1000)}",
-        "timestamp": int(time.time() * 1000),
-        "location": location,
-        "message": message,
-        "data": data or {},
-        "sessionId": "debug-session",
-        "runId": "run1",
-        "hypothesisId": hypothesis_id
-    }
-    try:
-        with open(r"c:\NGII\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json_lib.dumps(log_entry, ensure_ascii=False) + "\n")
-    except:
-        pass
-# #endregion
+if 'geometry_notified' not in st.session_state:
+    st.session_state.geometry_notified = False
 
 # 사이드바
 with st.sidebar:
@@ -85,23 +62,8 @@ with st.sidebar:
     3. 결과를 확인하고 다운로드합니다
     """)
 
-# #region agent log
-st.session_state.render_count += 1
-debug_log("streamlit_app.py:88", "Script render start", {
-    "render_count": st.session_state.render_count,
-    "candidates_exists": st.session_state.candidates is not None,
-    "aoi_geometry_exists": st.session_state.aoi_geometry is not None
-}, "A")
-# #endregion
-
 # 메인 컨텐츠
 tab1, tab2 = st.tabs(["🗺️ 지도 분석", "📊 결과 분석"])
-
-# #region agent log
-debug_log("streamlit_app.py:93", "Tabs created", {
-    "render_count": st.session_state.render_count
-}, "A")
-# #endregion
 
 with tab1:
     st.header("관심영역 선택 및 분석")
@@ -110,8 +72,8 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Folium 지도 생성 함수
-        def create_map():
+        # Folium 지도 생성
+        try:
             m = folium.Map(
                 location=[36.5, 127.5],  # 한국 중심
                 zoom_start=7,
@@ -148,35 +110,35 @@ with tab1:
                 except:
                     pass
             
-            return m
-        
-        # 지도 생성
-        m = create_map()
-        
-        # 지도 표시 및 상호작용 (key를 사용하여 인스턴스 고정)
-        try:
+            # 지도 표시 및 상호작용
+            # key를 사용하여 인스턴스 고정, use_container_width=False로 명시적 설정
             map_data = st_folium(
                 m, 
                 width=700, 
                 height=500, 
                 key="main_map",
-                returned_objects=["last_clicked", "all_drawings"]
+                returned_objects=["last_clicked", "all_drawings"],
+                use_container_width=False
             )
             
             # 그려진 영역 처리
-            if map_data and map_data.get("all_drawings"):
-                drawings = map_data["all_drawings"]
-                if drawings and len(drawings) > 0:
-                    # 마지막 그려진 영역 사용
-                    last_drawing = drawings[-1]
-                    if "geometry" in last_drawing:
-                        st.session_state.aoi_geometry = last_drawing["geometry"]
-                        if not st.session_state.get("geometry_notified", False):
-                            st.success("관심영역이 선택되었습니다!")
-                            st.session_state.geometry_notified = True
+            if map_data and isinstance(map_data, dict):
+                if map_data.get("all_drawings"):
+                    drawings = map_data["all_drawings"]
+                    if drawings and len(drawings) > 0:
+                        # 마지막 그려진 영역 사용
+                        last_drawing = drawings[-1]
+                        if isinstance(last_drawing, dict) and "geometry" in last_drawing:
+                            st.session_state.aoi_geometry = last_drawing["geometry"]
+                            if not st.session_state.geometry_notified:
+                                st.success("✅ 관심영역이 선택되었습니다!")
+                                st.session_state.geometry_notified = True
+                                
         except Exception as e:
-            st.error(f"지도 로딩 오류: {str(e)}")
-            st.info("페이지를 새로고침해주세요.")
+            st.error("⚠️ 지도 로딩 중 오류가 발생했습니다.")
+            st.info("💡 페이지를 새로고침해주세요.")
+            if st.button("🔄 페이지 새로고침", key="refresh_map"):
+                st.rerun()
     
     with col2:
         st.subheader("분석 실행")
@@ -254,13 +216,6 @@ with tab1:
 with tab2:
     st.header("분석 결과")
     
-    # #region agent log
-    debug_log("streamlit_app.py:195", "Tab2 accessed", {
-        "render_count": st.session_state.render_count,
-        "has_candidates": st.session_state.candidates is not None
-    }, "E")
-    # #endregion
-    
     if st.session_state.candidates is not None and not st.session_state.candidates.empty:
         candidates = st.session_state.candidates
         
@@ -307,4 +262,3 @@ with tab2:
 # 푸터
 st.markdown("---")
 st.caption("지하수저류댐 지형 적합성 자동평가 모델 v1.0")
-
