@@ -74,50 +74,50 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # 컨테이너로 지도 컴포넌트 격리하여 DOM 충돌 방지
-        map_container = st.container()
+        # st.empty()를 사용하여 지도 컨테이너를 동적으로 관리하여 DOM 충돌 방지
+        map_placeholder = st.empty()
         
-        with map_container:
+        with map_placeholder.container():
             # Folium 지도 생성 (세션 상태에 캐싱하여 재사용)
             try:
                 # 지도가 세션 상태에 없으면 생성
                 if st.session_state.folium_map is None:
-                m = folium.Map(
-                    location=[36.5, 127.5],  # 한국 중심
-                    zoom_start=7,
-                    tiles='OpenStreetMap'
-                )
-                
-                # Draw 플러그인 추가 (영역 그리기 도구)
-                draw = Draw(
-                    export=True,
-                    position='topleft',
-                    draw_options={
-                        'polyline': False,
-                        'polygon': True,
-                        'rectangle': True,
-                        'circle': False,
-                        'marker': False,
-                        'circlemarker': False
-                    }
-                )
-                draw.add_to(m)
-                
-                # 기존 후보지 표시
-                if os.path.exists("output/candidates.geojson"):
-                    try:
-                        existing_candidates = gpd.read_file("output/candidates.geojson")
-                        for idx, row in existing_candidates.iterrows():
-                            folium.CircleMarker(
-                                location=[row.geometry.y, row.geometry.x],
-                                radius=5,
-                                popup=f"점수: {row['score']:.1f}",
-                                color='blue',
-                                fill=True
-                            ).add_to(m)
-                    except:
-                        pass
-                
+                    m = folium.Map(
+                        location=[36.5, 127.5],  # 한국 중심
+                        zoom_start=7,
+                        tiles='OpenStreetMap'
+                    )
+                    
+                    # Draw 플러그인 추가 (영역 그리기 도구)
+                    draw = Draw(
+                        export=True,
+                        position='topleft',
+                        draw_options={
+                            'polyline': False,
+                            'polygon': True,
+                            'rectangle': True,
+                            'circle': False,
+                            'marker': False,
+                            'circlemarker': False
+                        }
+                    )
+                    draw.add_to(m)
+                    
+                    # 기존 후보지 표시
+                    if os.path.exists("output/candidates.geojson"):
+                        try:
+                            existing_candidates = gpd.read_file("output/candidates.geojson")
+                            for idx, row in existing_candidates.iterrows():
+                                folium.CircleMarker(
+                                    location=[row.geometry.y, row.geometry.x],
+                                    radius=5,
+                                    popup=f"점수: {row['score']:.1f}",
+                                    color='blue',
+                                    fill=True
+                                ).add_to(m)
+                        except:
+                            pass
+                    
                     # 세션 상태에 저장
                     st.session_state.folium_map = m
                 else:
@@ -125,13 +125,12 @@ with tab1:
                     m = st.session_state.folium_map
                 
                 # 지도 표시 및 상호작용
-                # key를 사용하여 인스턴스 고정, 최소한의 returned_objects로 불필요한 업데이트 방지
-                # zoom_control=False, scrollWheelZoom=False로 설정하여 불필요한 이벤트 방지
+                # 고유한 key를 사용하여 인스턴스 고정, 최소한의 returned_objects로 불필요한 업데이트 방지
                 map_data = st_folium(
                     m, 
                     width=700, 
                     height=500, 
-                    key="main_map",
+                    key="main_folium_map",  # 더 고유한 key 사용
                     returned_objects=["all_drawings"],  # last_clicked 제거하여 불필요한 업데이트 방지
                     use_container_width=False
                 )
