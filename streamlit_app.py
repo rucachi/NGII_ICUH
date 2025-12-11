@@ -39,6 +39,8 @@ if 'aoi_geometry' not in st.session_state:
     st.session_state.aoi_geometry = None
 if 'geometry_notified' not in st.session_state:
     st.session_state.geometry_notified = False
+if 'folium_map' not in st.session_state:
+    st.session_state.folium_map = None
 
 # 사이드바
 with st.sidebar:
@@ -72,53 +74,62 @@ with tab1:
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Folium 지도 생성
+        # Folium 지도 생성 (세션 상태에 캐싱하여 재사용)
         try:
-            m = folium.Map(
-                location=[36.5, 127.5],  # 한국 중심
-                zoom_start=7,
-                tiles='OpenStreetMap'
-            )
-            
-            # Draw 플러그인 추가 (영역 그리기 도구)
-            draw = Draw(
-                export=True,
-                position='topleft',
-                draw_options={
-                    'polyline': False,
-                    'polygon': True,
-                    'rectangle': True,
-                    'circle': False,
-                    'marker': False,
-                    'circlemarker': False
-                }
-            )
-            draw.add_to(m)
-            
-            # 기존 후보지 표시
-            if os.path.exists("output/candidates.geojson"):
-                try:
-                    existing_candidates = gpd.read_file("output/candidates.geojson")
-                    for idx, row in existing_candidates.iterrows():
-                        folium.CircleMarker(
-                            location=[row.geometry.y, row.geometry.x],
-                            radius=5,
-                            popup=f"점수: {row['score']:.1f}",
-                            color='blue',
-                            fill=True
-                        ).add_to(m)
-                except:
-                    pass
+            # 지도가 세션 상태에 없으면 생성
+            if st.session_state.folium_map is None:
+                m = folium.Map(
+                    location=[36.5, 127.5],  # 한국 중심
+                    zoom_start=7,
+                    tiles='OpenStreetMap'
+                )
+                
+                # Draw 플러그인 추가 (영역 그리기 도구)
+                draw = Draw(
+                    export=True,
+                    position='topleft',
+                    draw_options={
+                        'polyline': False,
+                        'polygon': True,
+                        'rectangle': True,
+                        'circle': False,
+                        'marker': False,
+                        'circlemarker': False
+                    }
+                )
+                draw.add_to(m)
+                
+                # 기존 후보지 표시
+                if os.path.exists("output/candidates.geojson"):
+                    try:
+                        existing_candidates = gpd.read_file("output/candidates.geojson")
+                        for idx, row in existing_candidates.iterrows():
+                            folium.CircleMarker(
+                                location=[row.geometry.y, row.geometry.x],
+                                radius=5,
+                                popup=f"점수: {row['score']:.1f}",
+                                color='blue',
+                                fill=True
+                            ).add_to(m)
+                    except:
+                        pass
+                
+                # 세션 상태에 저장
+                st.session_state.folium_map = m
+            else:
+                # 기존 지도 재사용
+                m = st.session_state.folium_map
             
             # 지도 표시 및 상호작용
-            # key를 사용하여 인스턴스 고정, use_container_width=False로 명시적 설정
+            # key를 사용하여 인스턴스 고정, zoom 파라미터 명시적으로 전달
             map_data = st_folium(
                 m, 
                 width=700, 
                 height=500, 
                 key="main_map",
-                returned_objects=["last_clicked", "all_drawings"],
-                use_container_width=False
+                returned_objects=["all_drawings"],  # last_clicked 제거하여 불필요한 업데이트 방지
+                use_container_width=False,
+                zoom=None  # 지도가 자체 zoom을 관리하도록 함
             )
             
             # 그려진 영역 처리
@@ -135,9 +146,12 @@ with tab1:
                                 st.session_state.geometry_notified = True
                                 
         except Exception as e:
+            # 오류 발생 시 지도 캐시 초기화
+            st.session_state.folium_map = None
             st.error("⚠️ 지도 로딩 중 오류가 발생했습니다.")
             st.info("💡 페이지를 새로고침해주세요.")
             if st.button("🔄 페이지 새로고침", key="refresh_map"):
+                st.session_state.folium_map = None
                 st.rerun()
     
     with col2:
