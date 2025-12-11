@@ -126,6 +126,7 @@ with tab1:
                 
                 # 지도 표시 및 상호작용
                 # key를 사용하여 인스턴스 고정, 최소한의 returned_objects로 불필요한 업데이트 방지
+                # zoom_control=False, scrollWheelZoom=False로 설정하여 불필요한 이벤트 방지
                 map_data = st_folium(
                     m, 
                     width=700, 
