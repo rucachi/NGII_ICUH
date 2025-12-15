@@ -39,11 +39,6 @@ if 'aoi_geometry' not in st.session_state:
     st.session_state.aoi_geometry = None
 if 'geometry_notified' not in st.session_state:
     st.session_state.geometry_notified = False
-# 지도 중심 및 줌 레벨 상태 (지도 객체 캐싱 대신 사용)
-if 'map_center' not in st.session_state:
-    st.session_state.map_center = [36.5, 127.5]  # 한국 중심
-if 'map_zoom' not in st.session_state:
-    st.session_state.map_zoom = 7
 
 # 사이드바
 with st.sidebar:
@@ -80,8 +75,8 @@ with tab1:
         # Folium 지도를 매번 새로 생성 (DOM 충돌 방지)
         try:
             m = folium.Map(
-                location=st.session_state.map_center,
-                zoom_start=st.session_state.map_zoom,
+                location=[36.5, 127.5],  # 한국 중심 (고정)
+                zoom_start=7,
                 tiles='OpenStreetMap'
             )
             
@@ -116,25 +111,17 @@ with tab1:
                     pass
             
             # 지도 표시 및 상호작용
-            # center와 zoom도 반환받아 세션 상태에 저장
+            # returned_objects를 최소화하여 리렌더링 방지
             map_data = st_folium(
                 m, 
                 width=700, 
                 height=500, 
                 key="folium_map_component",
-                returned_objects=["all_drawings", "center", "zoom"],
+                returned_objects=["all_drawings"],
                 use_container_width=False
             )
             
-            # 지도 뷰 상태 저장 (다음 렌더링 시 유지)
-            if map_data:
-                if map_data.get("center"):
-                    st.session_state.map_center = [
-                        map_data["center"]["lat"],
-                        map_data["center"]["lng"]
-                    ]
-                if map_data.get("zoom"):
-                    st.session_state.map_zoom = map_data["zoom"]
+            # NOTE: center/zoom 상태 업데이트를 제거함 - 리렌더링 루프 방지
             
             # 그려진 영역 처리
             if map_data and isinstance(map_data, dict):
