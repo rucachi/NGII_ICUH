@@ -2,3 +2,4 @@
 # Streamlit Cloud (Debian-based) package names
 libgdal-dev
 gdal-bin
+libgeos-dev
